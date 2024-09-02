@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Browser
 import Debug
@@ -17,6 +17,7 @@ type alias Model =
 type Msg
     = Select Int
     | Update Int
+    | Noop
 
 
 init : Int -> ( Model, Cmd Msg )
@@ -26,6 +27,23 @@ init nButtons =
       }
     , Cmd.none
     )
+
+
+port sendMessage : String -> Cmd msg
+
+
+port messageReceiver : (String -> msg) -> Sub msg
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    messageReceiver
+        (\newRB ->
+            newRB
+                |> String.toInt
+                |> Maybe.map Update
+                |> Maybe.withDefault Noop
+        )
 
 
 view : Model -> Html Msg
@@ -63,10 +81,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Select checkedIx ->
-            ( { model | checkedButton = Just checkedIx }, Cmd.none )
+            ( { model | checkedButton = Just checkedIx }, checkedIx |> String.fromInt |> sendMessage )
 
         Update checkedIx ->
             ( { model | checkedButton = Just checkedIx }, Cmd.none )
+
+        Noop ->
+            ( model, Cmd.none )
 
 
 main : Program Int Model Msg
@@ -75,5 +96,5 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         }
