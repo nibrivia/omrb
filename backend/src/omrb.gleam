@@ -14,7 +14,7 @@ import nakai
 import nakai/attr
 import nakai/html
 
-const n_buttons = 1_000
+const n_buttons = 1000
 
 type ServerState {
   ServerState(selected_ix: Option(Int), active_conns: Set(Subject(Int)))
@@ -26,9 +26,9 @@ fn init_state() -> ServerState {
 
 type Action {
   Select(Int)
+  Value(reply_with: Subject(Option(Int)))
   Connect(Subject(Int))
   Disconnect(Subject(Int))
-  Value(reply_with: Subject(Option(Int)))
 }
 
 type ConnectionState {
@@ -39,17 +39,22 @@ type ConnectionState {
 }
 
 pub fn main() {
-  let assert Ok(global_actor) = actor.start(init_state(), handle_message)
+  // Configure logging
+  logging.configure()
+  logging.set_level(Debug)
+  logging.log(logging.Info, "Start server")
 
+  // Start the server loop
+  let assert Ok(server_subject) = actor.start(init_state(), server_loop)
+
+  // Compute the homepage once
   let homepage =
     make_page()
     |> bytes_builder.from_string
     |> mist.Bytes
     |> to_html_response
 
-  logging.configure()
-  logging.set_level(Debug)
-  logging.log(logging.Info, "Start server")
+  // Start the webserver
   let assert Ok(_) =
     fn(request) {
       case request.path_segments(request) {
@@ -66,26 +71,13 @@ pub fn main() {
         }
 
         ["ws"] -> {
-          logging.log(Info, "Got new WS connection")
           mist.websocket(
             request: request,
-            on_init: fn(_conn) -> #(ConnectionState, Option(Selector(Int))) {
-              let connection_subject: Subject(Int) = process.new_subject()
-              process.send(global_actor, Connect(connection_subject))
-
-              let connection_selector =
-                process.new_selector()
-                |> process.selecting(connection_subject, function.identity)
-
-              #(
-                ConnectionState(global_actor, connection_subject),
-                Some(connection_selector),
-              )
-            },
+            on_init: fn(_conn) { init_client_state(server_subject) },
             on_close: fn(state: ConnectionState) {
-              process.send(global_actor, Disconnect(state.connection_subject))
+              process.send(server_subject, Disconnect(state.connection_subject))
             },
-            handler: handle_ws_update,
+            handler: client_loop,
           )
         }
 
@@ -99,7 +91,23 @@ pub fn main() {
   process.sleep_forever()
 }
 
-fn handle_ws_update(
+fn init_client_state(
+  server_subject: Subject(Action),
+) -> #(ConnectionState, Option(Selector(Int))) {
+  let connection_subject: Subject(Int) = process.new_subject()
+  process.send(server_subject, Connect(connection_subject))
+
+  let connection_selector =
+    process.new_selector()
+    |> process.selecting(connection_subject, function.identity)
+
+  #(
+    ConnectionState(server_subject, connection_subject),
+    Some(connection_selector),
+  )
+}
+
+fn client_loop(
   ws_state: ConnectionState,
   conn: mist.WebsocketConnection,
   message: WebsocketMessage(Int),
@@ -113,8 +121,8 @@ fn handle_ws_update(
           actor.continue(ws_state)
         }
 
+        // There's a parsing error, give up on this client
         Error(_) -> {
-          // There's a parsing error, give up on this client
           actor.Stop(process.Normal)
         }
       }
@@ -146,7 +154,7 @@ fn is_valid_index(box_ix: Int) -> Result(Int, Nil) {
   }
 }
 
-fn handle_message(
+fn server_loop(
   msg: Action,
   state: ServerState,
 ) -> actor.Next(Action, ServerState) {

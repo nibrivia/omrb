@@ -1,7 +1,6 @@
 port module Main exposing (..)
 
 import Browser
-import Debug
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
@@ -15,8 +14,8 @@ type alias Model =
 
 
 type Msg
-    = Select Int
-    | Update Int
+    = UserSelected Int
+    | ServerUpdate Int
     | Noop
 
 
@@ -41,9 +40,31 @@ subscriptions _ =
         (\newRB ->
             newRB
                 |> String.toInt
-                |> Maybe.map Update
+                |> Maybe.map ServerUpdate
                 |> Maybe.withDefault Noop
         )
+
+
+makeButton : Maybe Int -> Int -> Html Msg
+makeButton checkedIx buttonIx =
+    Html.span []
+        [ Html.input
+            [ Html.Attributes.name "omrb"
+            , Html.Attributes.type_ "radio"
+            , Html.Attributes.id ("omrb-" ++ String.fromInt buttonIx)
+            , onCheck
+                (\checked ->
+                    if checked then
+                        UserSelected buttonIx
+
+                    else
+                        UserSelected buttonIx
+                )
+            , Html.Attributes.checked (Just buttonIx == checkedIx)
+            ]
+            []
+        , Html.span [] [ Html.text "" ]
+        ]
 
 
 view : Model -> Html Msg
@@ -52,24 +73,8 @@ view model =
         buttons : List (Html Msg)
         buttons =
             List.range 0 model.nButtons
-                |> List.reverseMap
-                    (\buttonIx ->
-                        Html.input
-                            [ Html.Attributes.name "omrb"
-                            , Html.Attributes.type_ "radio"
-                            , Html.Attributes.id ("omrb-" ++ String.fromInt buttonIx)
-                            , onCheck
-                                (\checked ->
-                                    if checked then
-                                        Select buttonIx
-
-                                    else
-                                        Select buttonIx
-                                )
-                            , Html.Attributes.checked (Just buttonIx == model.checkedButton)
-                            ]
-                            []
-                    )
+                -- for large lists, reverseMap >> reverse is much more memory efficient
+                |> List.reverseMap (makeButton model.checkedButton)
                 |> List.reverse
     in
     Html.div
@@ -80,11 +85,15 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Select checkedIx ->
-            ( { model | checkedButton = Just checkedIx }, checkedIx |> String.fromInt |> sendMessage )
+        UserSelected checkedIx ->
+            ( { model | checkedButton = Just checkedIx }
+            , checkedIx |> String.fromInt |> sendMessage
+            )
 
-        Update checkedIx ->
-            ( { model | checkedButton = Just checkedIx }, Cmd.none )
+        ServerUpdate checkedIx ->
+            ( { model | checkedButton = Just checkedIx }
+            , Cmd.none
+            )
 
         Noop ->
             ( model, Cmd.none )
