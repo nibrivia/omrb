@@ -47,11 +47,16 @@ subscriptions _ =
 
 makeButton : Maybe Int -> Int -> Html Msg
 makeButton checkedIx buttonIx =
-    Html.span []
+    let
+        name =
+            "omrb-" ++ String.fromInt buttonIx
+    in
+    Html.label
+        [ Html.Attributes.for name ]
         [ Html.input
             [ Html.Attributes.name "omrb"
             , Html.Attributes.type_ "radio"
-            , Html.Attributes.id ("omrb-" ++ String.fromInt buttonIx)
+            , Html.Attributes.id name
             , onCheck
                 (\checked ->
                     if checked then
@@ -63,7 +68,6 @@ makeButton checkedIx buttonIx =
             , Html.Attributes.checked (Just buttonIx == checkedIx)
             ]
             []
-        , Html.span [] [ Html.text "" ]
         ]
 
 

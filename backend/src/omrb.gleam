@@ -207,6 +207,18 @@ fn make_page() -> String {
   html.Html([], [
     html.Head([
       html.title("One Million Radio Buttons"),
+      html.meta([attr.name("viewport"), attr.content("width=device-width")]),
+      html.Element("style", [], [
+        html.Text(
+          "input[type='radio'] { appearance: none; border: 1px solid grey; border-radius: 50%; width: 1.2em; height: 1.2em } ",
+        ),
+        html.Text(
+          "input[type='radio']:checked { background: rebeccapurple } ",
+        ),
+        html.Text(
+          "input[type='radio']:hover { outline: 1px solid black } ",
+        ),
+      ]),
       html.Element("script", [attr.src("/elm.js")], []),
     ]),
     html.Body([], [
