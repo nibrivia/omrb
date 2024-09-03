@@ -4,35 +4,42 @@ import gleam/function
 import gleam/http/request
 import gleam/http/response.{type Response}
 import gleam/int
-import gleam/io
-import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
-import gleam/string_builder
+import gleam/set.{type Set}
 import logging.{Debug, Info}
-import mist.{type Connection, type ResponseData, type WebsocketMessage}
+import mist.{type ResponseData, type WebsocketMessage}
 import nakai
 import nakai/attr
 import nakai/html
 
-const n_buttons = 10_000
+const n_buttons = 1_000
 
-type State {
-  State(selected_ix: Option(Int), active_conns: List(Subject(Int)))
+type ServerState {
+  ServerState(selected_ix: Option(Int), active_conns: Set(Subject(Int)))
 }
 
-const init_state = State(selected_ix: None, active_conns: [])
+fn init_state() -> ServerState {
+  ServerState(selected_ix: None, active_conns: set.new())
+}
 
 type Action {
   Select(Int)
   Connect(Subject(Int))
+  Disconnect(Subject(Int))
   Value(reply_with: Subject(Option(Int)))
 }
 
+type ConnectionState {
+  ConnectionState(
+    global_subject: Subject(Action),
+    connection_subject: Subject(Int),
+  )
+}
+
 pub fn main() {
-  let selected_subject: process.Subject(State) = process.new_subject()
-  let assert Ok(global_actor) = actor.start(init_state, handle_message)
+  let assert Ok(global_actor) = actor.start(init_state(), handle_message)
 
   let homepage =
     make_page()
@@ -62,21 +69,21 @@ pub fn main() {
           logging.log(Info, "Got new WS connection")
           mist.websocket(
             request: request,
-            on_init: fn(_conn) -> #(Subject(Action), Option(Selector(Int))) {
+            on_init: fn(_conn) -> #(ConnectionState, Option(Selector(Int))) {
               let connection_subject: Subject(Int) = process.new_subject()
               process.send(global_actor, Connect(connection_subject))
 
-              #(
-                global_actor,
+              let connection_selector =
                 process.new_selector()
-                  // |> process.selecting(selected_subject, function.identity)
-                  |> process.selecting(connection_subject, function.identity)
-                  |> Some,
+                |> process.selecting(connection_subject, function.identity)
+
+              #(
+                ConnectionState(global_actor, connection_subject),
+                Some(connection_selector),
               )
             },
-            on_close: fn(_state) {
-              // TODO Remove connection from list
-              Nil
+            on_close: fn(state: ConnectionState) {
+              process.send(global_actor, Disconnect(state.connection_subject))
             },
             handler: handle_ws_update,
           )
@@ -93,37 +100,42 @@ pub fn main() {
 }
 
 fn handle_ws_update(
-  ws_state: Subject(Action),
-  conn,
+  ws_state: ConnectionState,
+  conn: mist.WebsocketConnection,
   message: WebsocketMessage(Int),
-) -> actor.Next(Int, Subject(Action)) {
-  io.debug(#("handle_ws_update", message))
-  let global_actor = ws_state
-
+) -> actor.Next(Int, ConnectionState) {
   case message {
-    mist.Text("ping") -> {
-      let assert Ok(_) = mist.send_text_frame(conn, "pong")
-      actor.continue(ws_state)
-    }
+    // We got a message from the frontend
     mist.Text(str) -> {
       case str |> int.parse |> result.then(is_valid_index) {
         Ok(num) -> {
-          logging.log(Info, "handle_ws_update: " <> str)
-          process.send(global_actor, Select(num))
+          process.send(ws_state.global_subject, Select(num))
           actor.continue(ws_state)
         }
 
-        _ -> actor.continue(ws_state)
+        Error(_) -> {
+          // There's a parsing error, give up on this client
+          actor.Stop(process.Normal)
+        }
       }
     }
-    mist.Custom(selected_ix) -> {
-      logging.log(Info, "Got custom msg")
 
-      let assert Ok(_) = mist.send_text_frame(conn, selected_ix |> int.to_string)
+    // We got a message from the backend
+    mist.Custom(selected_ix) -> {
+      let assert Ok(_) =
+        mist.send_text_frame(conn, selected_ix |> int.to_string)
       actor.continue(ws_state)
     }
-    mist.Closed | mist.Shutdown -> actor.Stop(process.Normal)
-    _ -> actor.continue(ws_state)
+
+    // Normal disconnection flow
+    mist.Closed | mist.Shutdown -> {
+      actor.Stop(process.Normal)
+    }
+
+    // We got something we didn't plan for, cut the connection
+    _ -> {
+      actor.Stop(process.Normal)
+    }
   }
 }
 
@@ -134,36 +146,51 @@ fn is_valid_index(box_ix: Int) -> Result(Int, Nil) {
   }
 }
 
-fn handle_message(msg: Action, state: State) -> actor.Next(Action, State) {
-  io.debug(#("handle_message: ", msg))
-
+fn handle_message(
+  msg: Action,
+  state: ServerState,
+) -> actor.Next(Action, ServerState) {
+  logging.log(
+    Info,
+    "Current connections: " <> set.size(state.active_conns) |> int.to_string,
+  )
   case msg {
+    // Someone clicked a button!
     Select(button_ix) -> {
-      case 0 <= button_ix && button_ix < n_buttons {
-        True -> {
-          let State(_, connections) = state
+      case button_ix |> is_valid_index {
+        Ok(_) -> {
           let _ =
-            connections
-            |> list.each(fn(conn) {
-              logging.log(Debug, "Sending thing to process")
-              process.send(conn, button_ix)
-            })
-          actor.continue(State(..state, selected_ix: Some(button_ix)))
+            state.active_conns
+            |> set.map(fn(conn) { process.send(conn, button_ix) })
+
+          actor.continue(ServerState(..state, selected_ix: Some(button_ix)))
         }
-        _ -> actor.continue(state)
+
+        Error(_) -> actor.continue(state)
       }
     }
 
     Value(client) -> {
-      let State(selected_ix, _) = state
+      let ServerState(selected_ix, _) = state
       process.send(client, selected_ix)
+
       actor.continue(state)
     }
 
-    Connect(connection) -> {
-      actor.continue(
-        State(..state, active_conns: [connection, ..{ state.active_conns }]),
+    Connect(new_connection) -> {
+      ServerState(
+        ..state,
+        active_conns: state.active_conns |> set.insert(new_connection),
       )
+      |> actor.continue
+    }
+
+    Disconnect(old_connection) -> {
+      ServerState(
+        ..state,
+        active_conns: state.active_conns |> set.delete(old_connection),
+      )
+      |> actor.continue
     }
   }
 }
@@ -193,12 +220,10 @@ fn make_page() -> String {
           <> int.to_string(n_buttons)
           <> "});
 
-          // TODO handle reconnection
+          // TODO handle reconnection?
           var socket = new WebSocket('/ws');
           app.ports.sendMessage.subscribe(function(message) { socket.send(message);});
-          socket.addEventListener('message', function(event) {console.log(event); app.ports.messageReceiver.send(event.data);});
-
-          // TODO wire up port
+          socket.addEventListener('message', function(event) { app.ports.messageReceiver.send(event.data); });
           ",
       ),
     ]),
