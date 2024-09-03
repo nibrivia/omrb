@@ -11,7 +11,7 @@ import gleam/otp/actor
 import gleam/result
 import gleam/string_builder
 import logging.{Debug, Info}
-import mist.{type Connection, type ResponseData}
+import mist.{type Connection, type ResponseData, type WebsocketMessage}
 import nakai
 import nakai/attr
 import nakai/html
@@ -62,50 +62,23 @@ pub fn main() {
           logging.log(Info, "Got new WS connection")
           mist.websocket(
             request: request,
-            on_init: fn(_conn) {
-              #(
-                global_actor,
-                process.new_selector()
-                  |> process.selecting(selected_subject, function.identity)
-                  |> Some,
-              )
-            },
-            on_close: fn(_state) { Nil },
-            handler: handle_ws_update,
-          )
-        }
-
-        ["sse"] -> {
-          logging.log(Info, "Got new SSE connection")
-
-          // TODO handle disconnection
-          mist.server_sent_events(
-            request: request,
-            initial_response: response.new(200),
-            init: fn() {
+            on_init: fn(_conn) -> #(Subject(Action), Option(Selector(Int))) {
               let connection_subject: Subject(Int) = process.new_subject()
               process.send(global_actor, Connect(connection_subject))
 
-              let selector: Selector(Int) =
+              #(
+                global_actor,
                 process.new_selector()
-                |> process.selecting(connection_subject, function.identity)
-
-              actor.Ready(global_actor, selector)
-            },
-            loop: fn(message: Int, conn, actor) {
-              logging.log(
-                logging.Debug,
-                "Send new index " <> int.to_string(message),
+                  // |> process.selecting(selected_subject, function.identity)
+                  |> process.selecting(connection_subject, function.identity)
+                  |> Some,
               )
-              let event =
-                message
-                |> int.to_string
-                |> string_builder.from_string
-                |> mist.event
-
-              let _ = mist.send_event(conn, event)
-              actor.continue(actor)
             },
+            on_close: fn(_state) {
+              // TODO Remove connection from list
+              Nil
+            },
+            handler: handle_ws_update,
           )
         }
 
@@ -119,7 +92,14 @@ pub fn main() {
   process.sleep_forever()
 }
 
-fn handle_ws_update(ws_state: process.Subject(Action), conn, message) {
+fn handle_ws_update(
+  ws_state: Subject(Action),
+  conn,
+  message: WebsocketMessage(Int),
+) -> actor.Next(Int, Subject(Action)) {
+  io.debug(#("handle_ws_update", message))
+  let global_actor = ws_state
+
   case message {
     mist.Text("ping") -> {
       let assert Ok(_) = mist.send_text_frame(conn, "pong")
@@ -129,12 +109,18 @@ fn handle_ws_update(ws_state: process.Subject(Action), conn, message) {
       case str |> int.parse |> result.then(is_valid_index) {
         Ok(num) -> {
           logging.log(Info, "handle_ws_update: " <> str)
-          process.send(ws_state, Select(num))
+          process.send(global_actor, Select(num))
           actor.continue(ws_state)
         }
 
         _ -> actor.continue(ws_state)
       }
+    }
+    mist.Custom(selected_ix) -> {
+      logging.log(Info, "Got custom msg")
+
+      let assert Ok(_) = mist.send_text_frame(conn, selected_ix |> int.to_string)
+      actor.continue(ws_state)
     }
     mist.Closed | mist.Shutdown -> actor.Stop(process.Normal)
     _ -> actor.continue(ws_state)
@@ -210,10 +196,9 @@ fn make_page() -> String {
           // TODO handle reconnection
           var socket = new WebSocket('/ws');
           app.ports.sendMessage.subscribe(function(message) { socket.send(message);});
+          socket.addEventListener('message', function(event) {console.log(event); app.ports.messageReceiver.send(event.data);});
 
           // TODO wire up port
-          var sse = new EventSource('/sse');
-          sse.addEventListener('message', function(event) {console.log(event); app.ports.messageReceiver.send(event.data);});
           ",
       ),
     ]),
