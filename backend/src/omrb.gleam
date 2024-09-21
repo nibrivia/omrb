@@ -14,7 +14,7 @@ import nakai
 import nakai/attr
 import nakai/html
 
-const n_buttons = 1000
+const n_buttons = 10_000
 
 type ServerState {
   ServerState(selected_ix: Option(Int), active_conns: Set(Subject(Int)))
@@ -210,7 +210,7 @@ fn make_page() -> String {
       html.meta([attr.name("viewport"), attr.content("width=device-width")]),
       html.Element("style", [], [
         html.Text(
-          "input[type='radio'] { appearance: none; border: 1px solid grey; border-radius: 50%; width: 1.2em; height: 1.2em } ",
+          "input[type='radio'] { appearance: none; border: 1px solid grey; border-radius: 50%; width: 1.2em; height: 1.2em; } ",
         ),
         html.Text(
           "input[type='radio']:checked { background: rebeccapurple } ",
