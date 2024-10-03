@@ -6,6 +6,8 @@ import Browser.Events as Events
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import Html.Lazy as Lazy
+import Json.Decode as Decode
 import List.Extra as List
 import Task
 
@@ -22,7 +24,8 @@ type alias Model =
 type Msg
     = UserSelected Int
     | ServerUpdate Int
-    | NewWidth Int
+    | GetNewViewport
+    | NewViewport Dom.Viewport
     | Noop
 
 
@@ -52,16 +55,14 @@ init nButtons =
       , viewHeight = 700
       , viewOffset = 0
       }
-    , Task.perform updateWidth Dom.getViewport
+    , Task.perform NewViewport Dom.getViewport
     )
 
 
-updateWidth : Dom.Viewport -> Msg
-updateWidth viewPort =
-    NewWidth (viewPort.viewport.width |> round)
-
-
 port sendMessage : String -> Cmd msg
+
+
+port onScroll : (String -> msg) -> Sub msg
 
 
 port messageReceiver : (String -> msg) -> Sub msg
@@ -76,7 +77,7 @@ subscriptions _ =
                 |> Maybe.map ServerUpdate
                 |> Maybe.withDefault Noop
         )
-    , Events.onResize (\w _ -> NewWidth w)
+    , onScroll (\_ -> GetNewViewport)
     ]
         |> Sub.batch
 
@@ -85,13 +86,13 @@ makeButton : ButtonData -> Html Msg
 makeButton { isChecked, ix, row, col } =
     let
         name =
-            "omrb-" ++ String.fromInt ix |> Debug.log "id"
+            "omrb-" ++ String.fromInt ix
 
         pos_x =
-            col * buttonWidth |> Debug.log "pos_x"
+            col * buttonWidth
 
         pos_y =
-            row * rowHeight |> Debug.log "pos_y"
+            row * rowHeight
     in
     Html.label
         [ Html.Attributes.for name
@@ -118,17 +119,32 @@ makeButton { isChecked, ix, row, col } =
 
 
 buttonViewer : { a | viewWidth : Int, viewHeight : Int, viewOffset : Int, nButtons : Int, checkedIx : Maybe Int } -> Html Msg
-buttonViewer { viewWidth, nButtons, checkedIx } =
+buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
     let
         nPerRow : Int
         nPerRow =
-            (toFloat (viewWidth - 10)/ toFloat buttonWidth)
+            (toFloat (viewWidth - 10) / toFloat buttonWidth)
                 |> floor
 
         nRows : Int
         nRows =
             (toFloat nButtons / toFloat nPerRow)
                 |> ceiling
+
+        firstVisibleRow =
+            viewOffset // rowHeight
+
+        nVisibleRows =
+            round (toFloat viewHeight / toFloat rowHeight)
+
+        lastVisibleRow =
+            firstVisibleRow + nVisibleRows
+
+        firstIx =
+            (firstVisibleRow - 10) * nPerRow
+
+        lastIx =
+            (lastVisibleRow + 10) * nPerRow
     in
     Html.div
         [ Html.Attributes.style "height" ((nRows * rowHeight |> String.fromInt) ++ "px")
@@ -136,9 +152,11 @@ buttonViewer { viewWidth, nButtons, checkedIx } =
         , Html.Attributes.style "margin" "0"
         , Html.Attributes.style "padding" "0"
         , Html.Attributes.style "position" "relative"
+        , Html.Attributes.style "overflow" "scroll"
         , Html.Attributes.style "border" "3px solid red"
+        , Html.Events.on "scroll" (Decode.succeed GetNewViewport)
         ]
-        (List.range 0 (nButtons-1)
+        (List.range firstIx lastIx
             -- for large lists, reverseMap >> reverse is much more memory efficient
             |> List.reverseMap
                 (\ix ->
@@ -157,15 +175,19 @@ buttonViewer { viewWidth, nButtons, checkedIx } =
 
 
 view : Model -> Html Msg
-view model =
-    let
-        buttons : Html Msg
-        buttons =
-            buttonViewer model
-    in
-    Html.div
-        [ Html.Attributes.id "omrb" ]
-        [ buttons ]
+view model_ =
+    Lazy.lazy
+        (\model ->
+            let
+                buttons : Html Msg
+                buttons =
+                    buttonViewer model
+            in
+            Html.div
+                [ Html.Attributes.id "omrb-elm" ]
+                [ buttons ]
+        )
+        model_
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -181,8 +203,15 @@ update msg model =
             , Cmd.none
             )
 
-        NewWidth width ->
-            ( { model | viewWidth = width }
+        GetNewViewport ->
+            ( model, Task.perform NewViewport Dom.getViewport )
+
+        NewViewport viewport ->
+            ( { model
+                | viewWidth = round viewport.viewport.width
+                , viewHeight = round viewport.viewport.height
+                , viewOffset = round viewport.viewport.y
+              }
             , Cmd.none
             )
 

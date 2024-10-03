@@ -14,7 +14,7 @@ import nakai
 import nakai/attr
 import nakai/html
 
-const n_buttons = 100
+const n_buttons = 1_000_000
 
 type ServerState {
   ServerState(selected_ix: Option(Int), active_conns: Set(Subject(Int)))
@@ -239,6 +239,8 @@ fn make_page() -> String {
         "var app = Elm.Main.init({node: document.getElementById('omrb'), flags: "
           <> int.to_string(n_buttons)
           <> "});
+
+          document.addEventListener('scroll', (event) => {console.log('scrolling'); app.ports.onScroll.send('');});
 
           // TODO handle reconnection?
           var socket = new WebSocket('/ws');
