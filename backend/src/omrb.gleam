@@ -14,7 +14,7 @@ import nakai
 import nakai/attr
 import nakai/html
 
-const n_buttons = 10_000
+const n_buttons = 100
 
 type ServerState {
   ServerState(selected_ix: Option(Int), active_conns: Set(Subject(Int)))

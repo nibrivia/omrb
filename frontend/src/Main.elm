@@ -15,7 +15,7 @@ type alias Model =
     , checkedIx : Maybe Int
     , viewWidth : Int
     , viewHeight : Int
-    , viewOffset: Int
+    , viewOffset : Int
     }
 
 
@@ -24,6 +24,24 @@ type Msg
     | ServerUpdate Int
     | NewWidth Int
     | Noop
+
+
+type alias ButtonData =
+    { ix : Int
+    , row : Int
+    , col : Int
+    , isChecked : Bool
+    }
+
+
+buttonWidth : Int
+buttonWidth =
+    24
+
+
+rowHeight : Int
+rowHeight =
+    24
 
 
 init : Int -> ( Model, Cmd Msg )
@@ -59,17 +77,28 @@ subscriptions _ =
                 |> Maybe.withDefault Noop
         )
     , Events.onResize (\w _ -> NewWidth w)
-    ] |> Sub.batch
+    ]
+        |> Sub.batch
 
 
-makeButton : Bool -> Int -> Html Msg
-makeButton isChecked buttonIx =
+makeButton : ButtonData -> Html Msg
+makeButton { isChecked, ix, row, col } =
     let
         name =
-            "omrb-" ++ String.fromInt buttonIx
+            "omrb-" ++ String.fromInt ix |> Debug.log "id"
+
+        pos_x =
+            col * buttonWidth |> Debug.log "pos_x"
+
+        pos_y =
+            row * rowHeight |> Debug.log "pos_y"
     in
     Html.label
-        [ Html.Attributes.for name ]
+        [ Html.Attributes.for name
+        , Html.Attributes.style "position" "absolute"
+        , Html.Attributes.style "left" (String.fromInt pos_x ++ "px")
+        , Html.Attributes.style "top" (String.fromInt pos_y ++ "px")
+        ]
         [ Html.input
             [ Html.Attributes.name "omrb"
             , Html.Attributes.type_ "radio"
@@ -77,10 +106,10 @@ makeButton isChecked buttonIx =
             , onCheck
                 (\checked ->
                     if checked then
-                        UserSelected buttonIx
+                        UserSelected ix
 
                     else
-                        UserSelected buttonIx
+                        UserSelected ix
                 )
             , Html.Attributes.checked isChecked
             ]
@@ -88,36 +117,41 @@ makeButton isChecked buttonIx =
         ]
 
 
-buttonViewer : { a | viewWidth : Int, viewHeight: Int, viewOffset: Int, nButtons : Int, checkedIx : Maybe Int } -> Html Msg
+buttonViewer : { a | viewWidth : Int, viewHeight : Int, viewOffset : Int, nButtons : Int, checkedIx : Maybe Int } -> Html Msg
 buttonViewer { viewWidth, nButtons, checkedIx } =
     let
         nPerRow : Int
         nPerRow =
-            (toFloat viewWidth / toFloat buttonWidth)
+            (toFloat (viewWidth - 10)/ toFloat buttonWidth)
                 |> floor
 
         nRows : Int
         nRows =
             (toFloat nButtons / toFloat nPerRow)
                 |> ceiling
-
-        buttonWidth : Int
-        buttonWidth =
-            24
-
-        rowHeight =
-            24
     in
     Html.div
         [ Html.Attributes.style "height" ((nRows * rowHeight |> String.fromInt) ++ "px")
         , Html.Attributes.style "width" ((nPerRow * buttonWidth |> String.fromInt) ++ "px")
         , Html.Attributes.style "margin" "0"
         , Html.Attributes.style "padding" "0"
+        , Html.Attributes.style "position" "relative"
         , Html.Attributes.style "border" "3px solid red"
         ]
-        (List.range 1 nButtons
+        (List.range 0 (nButtons-1)
             -- for large lists, reverseMap >> reverse is much more memory efficient
-            |> List.reverseMap (\ix -> makeButton (checkedIx == Just ix) ix)
+            |> List.reverseMap
+                (\ix ->
+                    let
+                        buttonData =
+                            { ix = ix
+                            , isChecked = checkedIx == Just ix
+                            , row = ix // nPerRow
+                            , col = modBy nPerRow ix
+                            }
+                    in
+                    makeButton buttonData
+                )
             |> List.reverse
         )
 
