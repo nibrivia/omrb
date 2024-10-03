@@ -6,6 +6,7 @@ import Browser.Events as Events
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import Html.Keyed
 import Html.Lazy as Lazy
 import Json.Decode as Decode
 import List.Extra as List
@@ -78,6 +79,7 @@ subscriptions _ =
                 |> Maybe.withDefault Noop
         )
     , onScroll (\_ -> GetNewViewport)
+    , Events.onResize (\_ _ -> GetNewViewport)
     ]
         |> Sub.batch
 
@@ -141,22 +143,23 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
             firstVisibleRow + nVisibleRows
 
         firstIx =
-            (firstVisibleRow - 10) * nPerRow
+            Basics.max 0 ((firstVisibleRow - 10) * nPerRow)
 
         lastIx =
             (lastVisibleRow + 10) * nPerRow
     in
-    Html.div
+    Html.Keyed.node
+        "div"
         [ Html.Attributes.style "height" ((nRows * rowHeight |> String.fromInt) ++ "px")
         , Html.Attributes.style "width" ((nPerRow * buttonWidth |> String.fromInt) ++ "px")
         , Html.Attributes.style "margin" "0"
         , Html.Attributes.style "padding" "0"
         , Html.Attributes.style "position" "relative"
         , Html.Attributes.style "overflow" "scroll"
-        , Html.Attributes.style "border" "3px solid red"
         , Html.Events.on "scroll" (Decode.succeed GetNewViewport)
         ]
         (List.range firstIx lastIx
+            |> List.filter (\ix -> ix < nButtons)
             -- for large lists, reverseMap >> reverse is much more memory efficient
             |> List.reverseMap
                 (\ix ->
@@ -168,7 +171,7 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
                             , col = modBy nPerRow ix
                             }
                     in
-                    makeButton buttonData
+                    (String.fromInt ix, makeButton buttonData)
                 )
             |> List.reverse
         )
