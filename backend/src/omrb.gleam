@@ -85,7 +85,7 @@ pub fn main() {
       }
     }
     |> mist.new
-    |> mist.port(8000)
+    |> mist.port(8080)
     |> mist.start_http
 
   process.sleep_forever()
