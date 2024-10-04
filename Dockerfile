@@ -17,6 +17,7 @@ RUN cd /build \
 
 # Run the server
 WORKDIR /app
-COPY --from=0 /elm-build/assets/elm.js assets/elm.js
+RUN mkdir /frontend/assets/
+COPY --from=0 /elm-build/assets/elm.js ../assets/elm.js
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["run"]
