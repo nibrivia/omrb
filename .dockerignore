@@ -1,0 +1,20 @@
+# flyctl launch added from .gitignore
+**/*.beam
+**/*.ez
+build
+**/erl_crash.dump
+
+**/Session.vim
+
+# flyctl launch added from backend/.gitignore
+backend/**/*.beam
+backend/**/*.ez
+backend/build
+backend/**/erl_crash.dump
+
+backend/**/Session.vim
+
+# flyctl launch added from frontend/.gitignore
+frontend/**/elm-stuff
+frontend/**/assets/*
+fly.toml
