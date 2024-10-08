@@ -240,7 +240,7 @@ fn make_page() -> String {
           <> int.to_string(n_buttons)
           <> "});
 
-          document.addEventListener('scroll', (event) => {console.log('scrolling'); app.ports.onScroll.send('');});
+          document.addEventListener('scroll', (event) => {app.ports.onScroll.send('');});
 
           // TODO handle reconnection?
           var socket = new WebSocket('/ws');
