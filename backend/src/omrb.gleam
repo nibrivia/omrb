@@ -42,7 +42,7 @@ pub fn main() {
   // Configure logging
   logging.configure()
   logging.set_level(Debug)
-  logging.log(logging.Info, "Start server")
+  logging.log(logging.Warning, "Start server")
 
   // Start the server loop
   let assert Ok(server_subject) = actor.start(init_state(), server_loop)
@@ -186,6 +186,10 @@ fn server_loop(
     }
 
     Connect(new_connection) -> {
+      state.selected_ix
+      |> option.map(fn(selected_ix) {
+        process.send(new_connection, selected_ix)
+      })
       ServerState(
         ..state,
         active_conns: state.active_conns |> set.insert(new_connection),
@@ -212,12 +216,8 @@ fn make_page() -> String {
         html.Text(
           "input[type='radio'] { appearance: none; border: 1px solid grey; border-radius: 50%; width: 1.2em; height: 1.2em; } ",
         ),
-        html.Text(
-          "input[type='radio']:checked { background: rebeccapurple } ",
-        ),
-        html.Text(
-          "input[type='radio']:hover { outline: 1px solid black } ",
-        ),
+        html.Text("input[type='radio']:checked { background: rebeccapurple } "),
+        html.Text("input[type='radio']:hover { outline: 1px solid black } "),
       ]),
       html.Element("script", [attr.src("/elm.js")], []),
     ]),
