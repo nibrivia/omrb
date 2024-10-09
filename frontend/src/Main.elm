@@ -234,16 +234,15 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
         []
         [ arrow
         , checkboxes
-        , Html.div
+        , Html.p
             [ Html.Attributes.style "text-align" "right"
             , Html.Attributes.style "font-family" "monospace"
             , Html.Attributes.style "max-width" "100%"
             ]
-            [ Html.text "Made with fun using Elm and Gleam. Check it out at "
+            [ Html.text "Made with fun, for fun, using Elm and Gleam fun(). "
             , Html.a
                 [ Html.Attributes.href "https://github.com/nibrivia/omrb" ]
-                [ Html.text "github.com/nibrivia/omrb" ]
-            , Html.text " :)"
+                [ Html.text "Check it out!" ]
             ]
         ]
 
