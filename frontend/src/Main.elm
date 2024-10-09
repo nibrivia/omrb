@@ -181,6 +181,7 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
                     |> List.reverse
                 )
 
+        -- TODO: this whole section is way hacky, clean it up
         checkedDirection =
             checkedIx
                 |> Maybe.map
@@ -211,7 +212,6 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
                         , Html.Attributes.style "width" (String.fromInt (1 * buttonWidth) ++ "px")
                         , Html.Attributes.style "height" "0em"
                         , Html.Attributes.style "box-shadow" "0px 20px 20px 10px #66339966"
-                        -- , Html.Attributes.style "background" "linear-gradient(180deg, #66339944, white)"
                         ]
                         []
 
@@ -224,7 +224,6 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
                         , Html.Attributes.style "width" (String.fromInt (1 * buttonWidth) ++ "px")
                         , Html.Attributes.style "height" "0em"
                         , Html.Attributes.style "box-shadow" "0px -10px 20px 20px #66339966"
-                        -- , Html.Attributes.style "background" "linear-gradient(0deg, #66339944, white)"
                         ]
                         []
 
@@ -233,7 +232,20 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
     in
     Html.div
         []
-        [ arrow, checkboxes ]
+        [ arrow
+        , checkboxes
+        , Html.div
+            [ Html.Attributes.style "text-align" "right"
+            , Html.Attributes.style "font-family" "monospace"
+            , Html.Attributes.style "max-width" "100%"
+            ]
+            [ Html.text "Made with fun using Elm and Gleam. Check it out at "
+            , Html.a
+                [ Html.Attributes.href "https://github.com/nibrivia/omrb" ]
+                [ Html.text "github.com/nibrivia/omrb" ]
+            , Html.text " :)"
+            ]
+        ]
 
 
 view : Model -> Html Msg
