@@ -148,10 +148,10 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
             firstVisibleRow + nVisibleRows
 
         firstIx =
-            Basics.max 0 ((firstVisibleRow - 5) * nPerRow)
+            Basics.max 0 ((firstVisibleRow - 10) * nPerRow)
 
         lastIx =
-            Basics.min (nButtons - 1) ((lastVisibleRow + 5) * nPerRow)
+            Basics.min (nButtons - 1) ((lastVisibleRow + 10) * nPerRow)
 
         checkboxes =
             Html.Keyed.node
@@ -161,7 +161,6 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
                 , Html.Attributes.style "margin" "0"
                 , Html.Attributes.style "padding" "0"
                 , Html.Attributes.style "position" "relative"
-                , Html.Attributes.style "overflow" "scroll"
                 , Html.Events.on "scroll" (Decode.succeed GetNewViewport)
                 ]
                 (List.range firstIx lastIx
@@ -197,28 +196,35 @@ buttonViewer { viewWidth, nButtons, checkedIx, viewHeight, viewOffset } =
                     )
 
         arrow =
+            let
+                checkedPos =
+                    checkedIx
+                        |> Maybe.map (\ix -> ix |> modBy nPerRow |> (*) buttonWidth)
+            in
             case checkedDirection of
                 Just Above ->
                     Html.div
                         [ Html.Attributes.style "position" "fixed"
-                        , Html.Attributes.style "top" "0px"
-                        , Html.Attributes.style "left" "0px"
+                        , Html.Attributes.style "top" "-10px"
+                        , Html.Attributes.style "left" (String.fromInt (checkedPos |> Maybe.withDefault 0) ++ "px")
                         , Html.Attributes.style "text-align" "center"
-                        , Html.Attributes.style "width" "100%"
-                        , Html.Attributes.style "height" "4em"
-                        , Html.Attributes.style "background" "linear-gradient(180deg, #66339944, white)"
+                        , Html.Attributes.style "width" (String.fromInt (1 * buttonWidth) ++ "px")
+                        , Html.Attributes.style "height" "0em"
+                        , Html.Attributes.style "box-shadow" "0px 20px 20px 10px #66339966"
+                        -- , Html.Attributes.style "background" "linear-gradient(180deg, #66339944, white)"
                         ]
                         []
 
                 Just Below ->
                     Html.div
                         [ Html.Attributes.style "position" "fixed"
-                        , Html.Attributes.style "bottom" "0px"
-                        , Html.Attributes.style "left" "0px"
+                        , Html.Attributes.style "bottom" "-10px"
+                        , Html.Attributes.style "left" (String.fromInt (checkedPos |> Maybe.withDefault 0) ++ "px")
                         , Html.Attributes.style "text-align" "center"
-                        , Html.Attributes.style "width" "100%"
-                        , Html.Attributes.style "height" "4em"
-                        , Html.Attributes.style "background" "linear-gradient(0deg, #66339944, white)"
+                        , Html.Attributes.style "width" (String.fromInt (1 * buttonWidth) ++ "px")
+                        , Html.Attributes.style "height" "0em"
+                        , Html.Attributes.style "box-shadow" "0px -10px 20px 20px #66339966"
+                        -- , Html.Attributes.style "background" "linear-gradient(0deg, #66339944, white)"
                         ]
                         []
 
