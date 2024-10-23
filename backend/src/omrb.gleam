@@ -246,6 +246,8 @@ fn make_page() -> String {
           var socket = new WebSocket('/ws');
           app.ports.sendMessage.subscribe(function(message) { socket.send(message);});
           socket.addEventListener('message', function(event) { app.ports.messageReceiver.send(event.data); });
+          socket.addEventListener('close', function(event) { app.ports.messageReceiver.send('close'); });
+          socket.addEventListener('error', function(event) { app.ports.messageReceiver.send('error'); });
           ",
       ),
     ]),

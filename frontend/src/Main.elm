@@ -18,6 +18,7 @@ type alias Model =
     , viewWidth : Int
     , viewHeight : Int
     , viewOffset : Int
+    , disconnected : Bool
     }
 
 
@@ -25,6 +26,7 @@ type Msg
     = UserSelected Int
     | ServerUpdate Int
     | GetNewViewport
+    | Disconnect
     | NewViewport Dom.Viewport
     | Noop
 
@@ -54,6 +56,7 @@ init nButtons =
       , viewWidth = 500
       , viewHeight = 700
       , viewOffset = 0
+      , disconnected = False
       }
     , Task.perform NewViewport Dom.getViewport
     )
@@ -75,7 +78,7 @@ subscriptions _ =
             newRB
                 |> String.toInt
                 |> Maybe.map ServerUpdate
-                |> Maybe.withDefault Noop
+                |> Maybe.withDefault Disconnect
         )
     , onScroll (\_ -> GetNewViewport)
     , Events.onResize (\_ _ -> GetNewViewport)
@@ -254,9 +257,13 @@ view model =
         buttons =
             buttonViewer model
     in
-    Html.div
-        [ Html.Attributes.id "omrb-elm" ]
-        [ buttons ]
+    if model.disconnected then
+        Html.p [] [ Html.text "You've been disconnected, please refresh" ]
+
+    else
+        Html.div
+            [ Html.Attributes.id "omrb-elm" ]
+            [ buttons ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -283,6 +290,9 @@ update msg model =
               }
             , Cmd.none
             )
+
+        Disconnect ->
+            ( model, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )
